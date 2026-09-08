@@ -38,9 +38,15 @@ class SocketService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val repo = (application as SmartSocketApp).repository
 
-        startForegroundCompat(
+        // If Android will not have this service, let go of it rather than
+        // letting the refusal take the process with it. See below.
+        val foreground = startForegroundCompat(
             Notifications.ongoing(this, repo.status.value, repo.deviceName)
         )
+        if (!foreground) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
 
         watcher?.cancel()
         watcher = scope.launch {
@@ -81,21 +87,39 @@ class SocketService : Service() {
         super.onDestroy()
     }
 
-    private fun startForegroundCompat(notification: android.app.Notification) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            // Android 10+ requires the type to be declared, and 14+ rejects the
-            // call outright without one. connectedDevice is the honest label: the
-            // service exists to hold a Bluetooth link open.
-            ServiceCompat.startForeground(
-                this,
-                Notifications.ONGOING_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE,
-            )
-        } else {
-            startForeground(Notifications.ONGOING_ID, notification)
-        }
-    }
+    /**
+     * Returns whether the service actually became foreground.
+     *
+     * **A refusal here must not be fatal.** Android 14+ accepts a
+     * `connectedDevice` service only from a caller holding one of the Bluetooth
+     * runtime permissions as well as the manifest one, and throws
+     * `SecurityException` otherwise. That throw lands on this service's own
+     * dispatch, where the `runCatching` in [start] cannot see it - so instead of
+     * a missing notification the app got a fatal exception.
+     *
+     * The permission can also be revoked while a link is up, which would turn a
+     * setting the user changed into a crash the next time the service restarted.
+     *
+     * Without the notification the process is killable sooner. That is the whole
+     * cost, and it is a far smaller one than the app disappearing on a device
+     * that switches mains.
+     */
+    private fun startForegroundCompat(notification: android.app.Notification): Boolean =
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                // Android 10+ requires the type to be declared, and 14+ rejects
+                // the call outright without one. connectedDevice is the honest
+                // label: the service exists to hold a Bluetooth link open.
+                ServiceCompat.startForeground(
+                    this,
+                    Notifications.ONGOING_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE,
+                )
+            } else {
+                startForeground(Notifications.ONGOING_ID, notification)
+            }
+        }.isSuccess
 
     companion object {
         /**

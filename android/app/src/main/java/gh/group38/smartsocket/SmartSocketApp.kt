@@ -50,7 +50,22 @@ class SmartSocketApp : Application() {
         scope.launch {
             repository.linkState.collect { state ->
                 when (state) {
-                    is LinkState.Connected -> SocketService.start(this@SmartSocketApp)
+                    // A SIMULATED SOCKET GETS NO SERVICE. There is no link to
+                    // hold open, so there is nothing for it to buy.
+                    //
+                    // Starting it here killed the app on "Open demo". Android
+                    // 14+ accepts a connectedDevice service only from a caller
+                    // holding a Bluetooth runtime permission as well as the
+                    // manifest one, and demo mode is the single path that never
+                    // needs the radio - so it is the one path where the user has
+                    // no reason to have granted it. The SecurityException landed
+                    // on the service's own dispatch and took the process down.
+                    is LinkState.Connected ->
+                        if (state.device.isDemo) {
+                            SocketService.stop(this@SmartSocketApp)
+                        } else {
+                            SocketService.start(this@SmartSocketApp)
+                        }
 
                     // The link is being rebuilt on its own. Letting go of the
                     // service here would let the process die during exactly the
