@@ -1,5 +1,6 @@
 package gh.group38.smartsocket.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -11,17 +12,25 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import gh.group38.smartsocket.data.ChargeSession
 import java.text.SimpleDateFormat
@@ -36,6 +45,98 @@ fun HistoryScreen(
     onExport: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // The system back gesture goes back, rather than out of the app. This screen
+    // is reached from the dashboard, so that is where it returns - leaving the
+    // app entirely from a list of past charges is not what anyone means by it.
+    BackHandler { onBack() }
+
+    // Clearing asks first. It is not undoable, and it reaches past this app: the
+    // lifetime cutoff count and saved time live in the socket's EEPROM, so this
+    // zeroes the socket as well as the phone.
+    var confirmingClear by remember { mutableStateOf(false) }
+
+    if (confirmingClear) {
+        AlertDialog(
+            onDismissRequest = { confirmingClear = false },
+            shape = RoundedCornerShape(20.dp),
+            containerColor = Surface1,
+            title = {
+                Text(
+                    text = "Clear history?",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Bone,
+                )
+            },
+            text = {
+                Text(
+                    text = "Every recorded charge is deleted, and the socket's own " +
+                        "lifetime cutoff count and saved time are reset to zero. " +
+                        "This cannot be undone.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Muted,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmingClear = false
+                        onClear()
+                    }
+                ) {
+                    Text(
+                        text = "CLEAR",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Alarm,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmingClear = false }) {
+                    Text(
+                        text = "CANCEL",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Muted,
+                    )
+                }
+            },
+        )
+    }
+
+    // NOTHING RECORDED IS ITS OWN SCREEN, CENTRED.
+    //
+    // It used to be the same top-aligned layout with the list simply missing,
+    // which left one grey sentence in the top corner above a screenful of
+    // nothing - indistinguishable from a screen that had failed to load. An
+    // empty state centred in the space it occupies reads as deliberate.
+    //
+    // Split out rather than centred in place because the list below scrolls, and
+    // a scrolling column has unbounded height: there is no middle to centre in.
+    if (sessions.isEmpty()) {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(Ink)
+                .padding(horizontal = 40.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "History",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = Bone,
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    text = "Charges appear here once the socket has cut power at least once.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Muted,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
+        return
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -43,36 +144,34 @@ fun HistoryScreen(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 22.dp, vertical = 32.dp),
     ) {
+        // NO "BACK" LABEL. Android already has a back gesture and a back key,
+        // both of which this screen honours, and a word on the screen doing what
+        // the system control beside it already does is one thing too many.
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = "Back",
-                style = MaterialTheme.typography.labelSmall,
-                color = Faint,
-                modifier = Modifier.clickableNoRipple(onBack),
+            OutlineButton(
+                text = "EXPORT",
+                onClick = onExport,
+                tint = Gold,
+                dense = true,
             )
-            if (sessions.isNotEmpty()) {
-                Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                    Text(
-                        text = "Export",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Gold,
-                        modifier = Modifier.clickableNoRipple(onExport),
-                    )
-                    Text(
-                        text = "Clear",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Faint,
-                        modifier = Modifier.clickableNoRipple(onClear),
-                    )
-                }
-            }
+            Spacer(Modifier.width(10.dp))
+            // Alarm, like Disconnect, because it is the same kind of act: it
+            // throws away every charge recorded and zeroes the socket's own
+            // lifetime totals with them.
+            OutlineButton(
+                text = "CLEAR",
+                onClick = { confirmingClear = true },
+                tint = Alarm,
+                dense = true,
+            )
         }
 
         Spacer(Modifier.height(24.dp))
+
         Text(
             text = "History",
             style = MaterialTheme.typography.headlineMedium,
@@ -80,16 +179,10 @@ fun HistoryScreen(
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            text = if (sessions.isEmpty()) {
-                "Charges appear here once the socket has cut power at least once."
-            } else {
-                "${sessions.size} ${if (sessions.size == 1) "charge" else "charges"} recorded"
-            },
+            text = "${sessions.size} ${if (sessions.size == 1) "charge" else "charges"} recorded",
             style = MaterialTheme.typography.bodyMedium,
             color = Muted,
         )
-
-        if (sessions.isEmpty()) return@Column
 
         Spacer(Modifier.height(24.dp))
 

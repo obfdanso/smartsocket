@@ -65,6 +65,23 @@ class BleTransport(
         const val HandshakeTimeoutMs = 10_000L
 
         /**
+         * How many times to enumerate before believing a module really has no
+         * serial channel.
+         *
+         * Ported from the desktop app, which learned it the hard way: the first
+         * enumeration frequently returns only 0x1800 and 0x1801, the two
+         * services every BLE device must carry. That is not a device without a
+         * UART - it is a device whose vendor service has not been enumerated
+         * yet, because the radio connected a moment ago and GATT is still
+         * settling. Three covers the settling window without making a genuinely
+         * wrong device take a minute to reject.
+         */
+        const val DiscoveryAttempts = 3
+
+        /** Long enough for the vendor service to appear on the next sweep. */
+        const val DiscoverySettleMs = 1200L
+
+        /**
          * How long to wait for the stack to acknowledge one write before giving
          * up on it and letting the next through. Generous for BLE, and short
          * enough that a silent module cannot stall the queue.
@@ -168,12 +185,24 @@ class BleTransport(
         val callback = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
                 val device = result.device ?: return
+
+                // Does the advertisement name a serial service? Nothing else in
+                // the room does, so this alone identifies the socket among forty
+                // strangers' devices - before any connection is attempted, and
+                // without trusting a name the module's previous owner could have
+                // changed to anything.
+                val advertised = result.scanRecord?.serviceUuids.orEmpty().map { it.uuid }
+                val serial = advertised.any { uuid ->
+                    BleSerialProfiles.known.any { it.service == uuid }
+                }
+
                 onFound(
                     SocketDevice(
                         name = device.name ?: result.scanRecord?.deviceName ?: "Unnamed",
                         address = device.address,
                         kind = LinkKind.BLE,
                         rssi = result.rssi,
+                        advertisesSerial = serial,
                     )
                 )
             }
@@ -323,20 +352,74 @@ class BleTransport(
             return false
         }
 
-        if (!awaitFlag(DiscoverTimeoutMs) { servicesFound || connectFailed } || !servicesFound) {
-            disconnect()
-            fail("${device.name} connected but would not list its services.")
-            return false
+        // DISCOVERY IS RETRIED, AND THE CACHE DROPPED BETWEEN ATTEMPTS.
+        //
+        // A single sweep used to decide it: if the vendor service was not in the
+        // first answer, the whole connection was torn down and rebuilt from
+        // scratch, which costs three full connects to learn what three
+        // enumerations can tell you in four seconds.
+        //
+        // The cache flush matters as much as the retry. The desktop app asks
+        // Windows for an uncached read in one line; Android has no equivalent
+        // and will hand back a remembered service list, so a module that was
+        // enumerated badly once can keep looking broken.
+        var profile: BleSerialProfile? = null
+        var described: List<BleService> = emptyList()
+
+        for (attempt in 0 until DiscoveryAttempts) {
+            // The first sweep is already running - onConnectionStateChange asks
+            // for it the moment the link comes up. Later ones have to be asked
+            // for, and are worth asking for only after the cache is dropped.
+            if (attempt > 0) {
+                servicesFound = false
+                refreshGattCache()
+                kotlinx.coroutines.delay(DiscoverySettleMs)
+                if (connectFailed) break
+
+                try {
+                    gatt?.discoverServices()
+                } catch (_: SecurityException) {
+                    break
+                }
+            }
+
+            if (!awaitFlag(DiscoverTimeoutMs) { servicesFound || connectFailed }) continue
+            if (!servicesFound) continue
+
+            described = describeServices()
+            profile = BleSerialProfiles.resolve(described)
+            if (profile != null) break
         }
 
-        val profile = BleSerialProfiles.resolve(describeServices())
         if (profile == null) {
-            val seen = gatt?.services.orEmpty().joinToString { it.uuid.toString() }
+            // WHICH FAILURE IT IS DECIDES WHAT TO DO ABOUT IT, so they are not
+            // one message. A module reporting only the two mandatory services
+            // has not woken up properly and wants power-cycling; a module with
+            // real services and no serial channel is the wrong device entirely.
+            // Told apart, one of those is a ten-second fix.
+            val onlyMandatory = described.isNotEmpty() && described.all {
+                val uuid = it.uuid.toString().lowercase()
+                uuid.startsWith("00001800-") || uuid.startsWith("00001801-")
+            }
+            val seen = described.joinToString { it.uuid.toString() }
+
             disconnect()
             fail(
-                "${device.name} is a Bluetooth LE device with no serial channel - " +
-                    "nothing on it can carry the socket's data. Services found: " +
-                    seen.ifEmpty { "none" }
+                when {
+                    described.isEmpty() ->
+                        "${device.name} connected but would not list its services."
+
+                    onlyMandatory ->
+                        "${device.name} reported only the two services every BLE device " +
+                            "has, and none of its own, after $DiscoveryAttempts attempts. " +
+                            "Power-cycle the socket, wait for the module's LED to blink " +
+                            "fast, and try again."
+
+                    else ->
+                        "${device.name} is a Bluetooth LE device with no serial channel - " +
+                            "nothing on it can carry the socket's data. Services found: " +
+                            seen.ifEmpty { "none" }
+                }
             )
             return false
         }
@@ -518,6 +601,26 @@ class BleTransport(
         } catch (_: SecurityException) {
             false
         }
+    }
+
+    /**
+     * Drops Android's remembered copy of the device's service list.
+     *
+     * THERE IS NO PUBLIC API FOR THIS. The desktop app asks Windows for an
+     * uncached read as an argument; Android offers nothing, and hands back a
+     * cached list that can outlive the connection it came from - so a module
+     * enumerated badly once keeps looking broken on every attempt after.
+     * `BluetoothGatt.refresh()` is the long-standing way round it, and it is
+     * hidden, hence reflection.
+     *
+     * Written to fail silently on purpose. It is a best-effort improvement to a
+     * retry that already works without it: newer Android releases restrict
+     * non-SDK interfaces, and this must degrade to "no cache flush" rather than
+     * take the connection attempt down with it.
+     */
+    private fun refreshGattCache() {
+        val target = gatt ?: return
+        runCatching { target.javaClass.getMethod("refresh").invoke(target) }
     }
 
     private suspend fun awaitFlag(timeoutMs: Long, predicate: () -> Boolean): Boolean =

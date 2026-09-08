@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import gh.group38.smartsocket.data.DeviceRanking
 import gh.group38.smartsocket.data.HistoryExport
 import gh.group38.smartsocket.data.LinkState
 import gh.group38.smartsocket.data.MockTransport
@@ -121,21 +122,26 @@ class SocketViewModel(app: Application) : AndroidViewModel(app) {
         // that matters - but a Classic HC-05 would only ever be in the first.
         val bonded = repo.pairedDevices()
 
-        // Named first, then strongest first.
+        // UNNAMED RESULTS ARE DROPPED - UNLESS THEY ADVERTISE A SERIAL SERVICE.
         //
-        // A sweep in a building returns dozens of results, nearly all of them
-        // unnamed phones and watches using rotating private addresses. The
-        // socket is the thing on the desk in front of you, so it is reliably the
-        // loudest - which makes signal strength the only practical way to find
-        // it in that list.
+        // This is why the app listed far more devices than Android's Bluetooth
+        // settings do. Settings shows what you have paired; this scans the air,
+        // and the air in a building is full of phones, watches and earbuds
+        // advertising once a second with rotating private addresses and no name
+        // at all. Forty of those is not a list, it is a wall.
+        //
+        // The exception is the important half: a nameless device offering a
+        // serial channel is not noise, it is almost certainly the socket with
+        // its name left off the advertisement. Dropping it was the one way this
+        // filter could have hidden the very thing it exists to reveal.
         val scanned = repo.discovered.value
             .filter { found -> bonded.none { it.address == found.address } }
-            .sortedWith(
-                compareBy<SocketDevice> { it.name == "Unnamed" }
-                    .thenByDescending { it.rssi ?: Int.MIN_VALUE }
-            )
+            .filter { it.name != UNNAMED || it.advertisesSerial }
 
-        _devices.value = bonded + scanned
+        // The socket goes to the top, whichever list it came from. The ordering
+        // itself lives in [DeviceRanking], where it can be tested without a
+        // radio - it is the behaviour the whole picker is judged on.
+        _devices.value = DeviceRanking.rank(bonded + scanned)
     }
 
     /** True while the radio is being swept. Drives the "Looking…" line. */
@@ -177,6 +183,36 @@ class SocketViewModel(app: Application) : AndroidViewModel(app) {
             }
             stopScan()
         }
+    }
+
+    /** Consumed by the first automatic sweep, and never set back. */
+    private var autoScanned = false
+
+    /**
+     * The one sweep nobody has to ask for.
+     *
+     * THE PICKER USED TO SWEEP EVERY TIME IT APPEARED - on launch, after a
+     * disconnect, after a failed connection, after backing out of the dashboard,
+     * and again the moment Bluetooth was switched on. Twelve seconds of
+     * low-latency scanning each time, for reasons the user could not see, which
+     * is why it looked like the app searching at random. In an app whose whole
+     * purpose is looking after batteries, that is a hard thing to defend.
+     *
+     * One sweep still happens by itself, because a Bluetooth LE module never
+     * bonds and so is never in the paired list: without it the first thing
+     * anyone sees is an empty screen. After that the radio only runs when
+     * somebody presses Search.
+     *
+     * The flag is only spent if the sweep actually starts. Consumed while the
+     * permission was still pending, it would swallow the one automatic scan and
+     * leave the user staring at an empty list having never been searched for.
+     */
+    fun startScanOnce() {
+        if (autoScanned) return
+        if (!_permissionGranted.value || !bluetoothOn()) return
+
+        autoScanned = true
+        startScan()
     }
 
     fun stopScan() {
@@ -251,6 +287,9 @@ class SocketViewModel(app: Application) : AndroidViewModel(app) {
 
     private companion object {
         const val KEY_ONBOARDED = "onboarded"
+
+        /** What the transports call a device that advertised without a name. */
+        const val UNNAMED = "Unnamed"
 
         /** Long enough to find a module in the room, short enough to end. */
         const val SCAN_DURATION_MS = 12_000L

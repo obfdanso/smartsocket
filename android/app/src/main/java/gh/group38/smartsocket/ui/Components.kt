@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,54 +39,60 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.res.painterResource
+import gh.group38.smartsocket.R
 
-/** The socket face from the launcher icon, redrawn so it can be animated. */
+/**
+ * The SS monogram. The app's mark, and the launcher icon's.
+ *
+ * The artwork is transparent, so it sits straight on [Ink] with no plate of its
+ * own: the gold S reads at full strength and the outlined S ghosts behind it.
+ *
+ * It replaced a socket face drawn in Canvas. That one scaled to any size without
+ * blurring, which this cannot - below about 40 dp the thin inner ring turns to
+ * mush - but it was not the project's mark, and one mark used everywhere beats a
+ * sharper drawing of the wrong thing.
+ */
 @Composable
-fun SocketMark(
+fun LogoMark(
     size: Dp = 96.dp,
-    color: Color = Gold,
     modifier: Modifier = Modifier,
 ) {
-    Canvas(modifier = modifier.size(size)) {
-        val s = this.size.minDimension
-        val stroke = s * 0.055f
-        val inset = s * 0.16f
-        val corner = s * 0.16f
+    Image(
+        painter = painterResource(id = R.drawable.logo_mark),
+        contentDescription = "Smart Socket",
+        modifier = modifier.size(size),
+    )
+}
 
-        drawRoundRect(
-            color = color,
-            topLeft = Offset(inset, inset * 1.1f),
-            size = Size(s - inset * 2, s - inset * 2.2f),
-            cornerRadius = androidx.compose.ui.geometry.CornerRadius(corner, corner),
-            style = Stroke(width = stroke),
-        )
+/**
+ * The name, letterspaced to match the mark.
+ *
+ * The tracking is the point: it is the same wide setting the monogram's own
+ * "SMART SOCKET" carries, which is what ties a bare line of text to the logo
+ * above it without repeating the logo.
+ */
+@Composable
+fun Wordmark(modifier: Modifier = Modifier) {
+    Text(
+        text = "S M A R T   S O C K E T",
+        style = MaterialTheme.typography.labelSmall,
+        color = Muted,
+        modifier = modifier,
+    )
+}
 
-        val pin = s * 0.085f
-        // Earth, top centre.
-        drawLine(
-            color = color,
-            start = Offset(s * 0.5f, s * 0.33f),
-            end = Offset(s * 0.5f, s * 0.44f),
-            strokeWidth = pin,
-            cap = StrokeCap.Round,
-        )
-        // Live and neutral, below.
-        drawLine(
-            color = color,
-            start = Offset(s * 0.33f, s * 0.60f),
-            end = Offset(s * 0.44f, s * 0.60f),
-            strokeWidth = pin,
-            cap = StrokeCap.Round,
-        )
-        drawLine(
-            color = color,
-            start = Offset(s * 0.56f, s * 0.60f),
-            end = Offset(s * 0.67f, s * 0.60f),
-            strokeWidth = pin,
-            cap = StrokeCap.Round,
-        )
-    }
+/** A rule. Structure without a box around it. */
+@Composable
+fun Hairline(modifier: Modifier = Modifier, color: Color = Surface3) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(1.dp)
+            .background(color),
+    )
 }
 
 /** A gold arc that sweeps while something is happening. */
@@ -192,9 +199,11 @@ fun GoldButton(
         modifier = modifier
             .fillMaxWidth()
             .height(54.dp)
+            // BEFORE clip and background, so the whole button presses rather
+            // than just its label. See clickableNoRipple.
+            .then(if (enabled) Modifier.clickableNoRipple(onClick) else Modifier)
             .clip(RoundedCornerShape(16.dp))
-            .background(bg)
-            .then(if (enabled) Modifier.clickableNoRipple(onClick) else Modifier),
+            .background(bg),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -214,23 +223,39 @@ fun OutlineButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     tint: Color = Bone,
+
+    /**
+     * A chip rather than a bar: small enough to sit at the end of a list row
+     * without owning it. It carries its own colour on the border, because at
+     * that size a neutral grey edge reads as disabled.
+     */
+    dense: Boolean = false,
 ) {
-    val edge = if (enabled) Surface3 else Surface2
+    val edge = when {
+        !enabled -> Surface2
+        dense -> tint.copy(alpha = 0.55f)
+        else -> Surface3
+    }
     val fg = if (enabled) tint else Faint
+    val corner = if (dense) 10.dp else 14.dp
 
     Box(
         modifier = modifier
-            .height(50.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .border(BorderStroke(1.dp, edge), RoundedCornerShape(14.dp))
-            .then(if (enabled) Modifier.clickableNoRipple(onClick) else Modifier),
+            .height(if (dense) 38.dp else 50.dp)
+            .then(if (enabled) Modifier.clickableNoRipple(onClick) else Modifier)
+            .clip(RoundedCornerShape(corner))
+            .border(BorderStroke(1.dp, edge), RoundedCornerShape(corner)),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = text,
-            style = MaterialTheme.typography.bodyMedium,
+            style = if (dense) {
+                MaterialTheme.typography.labelSmall
+            } else {
+                MaterialTheme.typography.bodyMedium
+            },
             color = fg,
-            modifier = Modifier.padding(horizontal = 18.dp),
+            modifier = Modifier.padding(horizontal = if (dense) 14.dp else 18.dp),
         )
     }
 }

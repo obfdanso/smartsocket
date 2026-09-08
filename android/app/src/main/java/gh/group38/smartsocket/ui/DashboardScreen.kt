@@ -1,5 +1,6 @@
 package gh.group38.smartsocket.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -18,12 +19,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -39,7 +45,12 @@ import gh.group38.smartsocket.data.SocketCommand
 import gh.group38.smartsocket.data.SocketState
 import gh.group38.smartsocket.data.SocketStatus
 import java.util.Locale
+import kotlin.math.roundToInt
 
+// The Slider `track` slot, and SliderDefaults.Track taking a SliderState, are
+// still experimental in Material3 1.3. Opted in deliberately: the alternative is
+// the stock track, which is the thing being fixed.
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
     status: SocketStatus,
@@ -64,6 +75,43 @@ fun DashboardScreen(
 ) {
     val reconnecting = linkState as? LinkState.Reconnecting
     val tint = status.state.tint()
+    val isDemo = (linkState as? LinkState.Connected)?.device?.isDemo == true
+
+    /**
+     * The heaviest draw seen since this screen opened.
+     *
+     * Kept because [SocketStatus.peakMa] is cleared the instant the socket cuts,
+     * so reading the live value would blank the power figure at exactly the
+     * moment it is worth showing - the one right after the wall went off.
+     */
+    var heaviestMa by remember { mutableIntStateOf(0) }
+    if (status.peakMa > heaviestMa) heaviestMa = status.peakMa
+
+    // DISCONNECTING ASKS FIRST, WHICHEVER WAY IT IS REACHED.
+    //
+    // It hands the charge decision back to the socket and drops the link. That
+    // is a real consequence to arrive at by way of a stray tap near the top of
+    // the screen, or a back gesture made out of habit.
+    //
+    // Back lets go of the socket rather than the app: this is the root screen
+    // once a link is up, so back used to fall straight out to the launcher,
+    // leaving the link, the foreground service and the battery cutoff all
+    // running behind a screen the user thought they had closed. Going back from
+    // here means "I am done with this socket" - which is what Disconnect means -
+    // so both routes arrive at the same question.
+    var confirmingDisconnect by remember { mutableStateOf(false) }
+
+    BackHandler { confirmingDisconnect = true }
+
+    if (confirmingDisconnect) {
+        DisconnectDialog(
+            onConfirm = {
+                confirmingDisconnect = false
+                onDisconnect()
+            },
+            onCancel = { confirmingDisconnect = false },
+        )
+    }
 
     Column(
         modifier = modifier
@@ -78,14 +126,22 @@ fun DashboardScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                SocketMark(size = 30.dp)
-                Spacer(Modifier.height(0.dp))
+                // 40, not 30: the monogram is a drawn mark with a thin inner
+                // ring, and below about 40 dp that ring stops resolving.
+                LogoMark(size = 40.dp)
                 Column(Modifier.padding(start = 12.dp)) {
-                    Text(
-                        text = deviceName,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Bone,
-                    )
+                    // The simulated socket does not announce itself by name.
+                    // "Demo socket" labels a thing that is not there, and next
+                    // to a live current reading it invites the reader to
+                    // distrust the reading too. A real module keeps its name,
+                    // because which socket you are holding is worth knowing.
+                    if (!isDemo) {
+                        Text(
+                            text = deviceName,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Bone,
+                        )
+                    }
                     Text(
                         text = when {
                             reconnecting != null -> "Reconnecting"
@@ -101,11 +157,15 @@ fun DashboardScreen(
                     )
                 }
             }
-            Text(
-                text = "Disconnect",
-                style = MaterialTheme.typography.labelSmall,
-                color = Faint,
-                modifier = Modifier.clickableNoRipple(onDisconnect),
+            // A bordered chip in Alarm, not grey text. It drops the link on a
+            // device switching 230 V, which is not something to trip over while
+            // reaching for the top of the screen - so it is bigger than it was,
+            // and it looks like the consequence it carries.
+            OutlineButton(
+                text = "DISCONNECT",
+                onClick = { confirmingDisconnect = true },
+                tint = Alarm,
+                dense = true,
             )
         }
 
@@ -217,7 +277,11 @@ fun DashboardScreen(
                 modifier = Modifier.weight(1f),
             )
             OutlineButton(
-                text = if (status.state == SocketState.CUTOFF) "Turn back on" else "Re-arm",
+                // "Re-arm" whatever the state. It was "Turn back on" after a
+                // cutoff, which reads as a light switch - and the socket does
+                // not merely come back on, it goes back to watching. One name
+                // for one action is also one less thing to explain.
+                text = "Re-arm",
                 onClick = { onCommand(SocketCommand.REARM) },
                 enabled = live && (status.state == SocketState.CUTOFF || status.state.isAlarm),
                 tint = Gold,
@@ -297,23 +361,51 @@ fun DashboardScreen(
                 color = if (appManaging) Gold else Muted,
             )
 
+            // Hoisted, because the custom track below has to be given the same
+            // ones - a track drawn with different colours to its own slider is
+            // the sort of thing that only shows up on the day.
+            val sliderColors = SliderDefaults.colors(
+                thumbColor = Gold,
+                activeTrackColor = Gold,
+                // Surface3, not Muted. Muted is a text grey, and at full weight
+                // beside gold it read as a second, lighter bar joined onto the
+                // end of the first rather than as the empty part of one track.
+                inactiveTrackColor = Surface3,
+                disabledThumbColor = Muted,
+                disabledActiveTrackColor = Muted,
+                disabledInactiveTrackColor = Surface3,
+            )
+
             Slider(
                 value = shown.toFloat(),
-                onValueChange = { dragging = it.toInt() },
+                // ROUNDED HERE RATHER THAN BY `steps`.
+                //
+                // The five-point stops are exactly the ones `steps = 9` gave.
+                // `steps` is dropped only because it is also what draws the row
+                // of tick marks down the middle of the track, which against a
+                // gold bar read as specks of dirt rather than as stops.
+                onValueChange = { dragging = (it / 5f).roundToInt() * 5 },
                 onValueChangeFinished = {
                     dragging?.let { onBatteryLimit(it) }
                     dragging = null
                 },
                 valueRange = 50f..100f,
-                steps = 9,
                 enabled = appManaging,
-                colors = SliderDefaults.colors(
-                    thumbColor = Gold,
-                    activeTrackColor = Gold,
-                    inactiveTrackColor = Muted,
-                    disabledThumbColor = Muted,
-                    disabledActiveTrackColor = Muted,
-                ),
+                colors = sliderColors,
+                // Material 3's stock track breaks itself either side of the
+                // thumb and drops a stop dot at the far end. Against gold those
+                // do not read as styling: the gap makes one bar look like two
+                // butted together, and the dot looks like a tick mark left
+                // behind. Closed and unmarked, it reads as a single control.
+                track = { state ->
+                    SliderDefaults.Track(
+                        sliderState = state,
+                        colors = sliderColors,
+                        enabled = appManaging,
+                        thumbTrackGapSize = 0.dp,
+                        drawStopIndicator = null,
+                    )
+                },
                 modifier = Modifier.fillMaxWidth(),
             )
 
@@ -345,13 +437,20 @@ fun DashboardScreen(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
+                // Centred, because the History action is now a 48 dp target and
+                // would otherwise sit a good deal lower than the label it is
+                // paired with.
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 FieldLabel("Lifetime")
-                Text(
-                    text = "History",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Gold,
-                    modifier = Modifier.clickableNoRipple(onHistory),
+                // The same chip as Export on the history screen, because it is
+                // the same kind of thing: a gold-bordered way out of this panel
+                // into the records behind it.
+                OutlineButton(
+                    text = "HISTORY",
+                    onClick = onHistory,
+                    tint = Gold,
+                    dense = true,
                 )
             }
             Spacer(Modifier.height(16.dp))
@@ -361,19 +460,89 @@ fun DashboardScreen(
                     value = status.cutoffCount.toString(),
                     modifier = Modifier.weight(1f),
                 )
+                // A DASH, NOT A ZERO, FOR SOMETHING NOT YET MEASURED.
+                //
+                // These read 0 in the moments right after a successful cutoff -
+                // the session peak is cleared and no load has been seen yet - so
+                // the screen announced "0 W" and "0.00 A" directly underneath
+                // the news that it had just worked. A zero is a measurement;
+                // this is the absence of one, and the two should not look alike.
+                //
+                // ENERGY, NOT POWER, SO THE UNIT IS WATT-HOURS. Watts would say
+                // how hard the load was pulling; watt-hours say how much
+                // electricity never left the wall, which is the thing the socket
+                // is for.
                 Stat(
-                    label = "Power saved",
-                    value = formatDuration(status.totalSavedMs),
+                    label = "Energy saved",
+                    value = energySaved(heaviestMa, status.totalSavedMs),
                     modifier = Modifier.weight(1f),
                 )
                 Stat(
                     label = "Peak",
-                    value = String.format(Locale.UK, "%.2f A", status.peakAmps),
+                    value = if (status.peakMa > 0) {
+                        String.format(Locale.UK, "%.2f A", status.peakAmps)
+                    } else {
+                        NOT_YET
+                    },
                     modifier = Modifier.weight(1f),
                 )
             }
         }
     }
+}
+
+/**
+ * The question asked before the link is dropped.
+ *
+ * It names the consequence rather than asking "are you sure?", because the thing
+ * worth knowing is not that something is about to happen but **what** - the
+ * socket carries on by itself, and the part that stops is this phone's own
+ * charge limit, which is the feature the app exists for.
+ *
+ * Cancel is the quiet one and Disconnect wears the alarm colour: the destructive
+ * choice should be the one that has to be aimed at.
+ */
+@Composable
+private fun DisconnectDialog(onConfirm: () -> Unit, onCancel: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onCancel,
+        shape = RoundedCornerShape(20.dp),
+        containerColor = Surface1,
+        title = {
+            Text(
+                text = "Disconnect?",
+                style = MaterialTheme.typography.titleMedium,
+                color = Bone,
+            )
+        },
+        text = {
+            Text(
+                text = "The socket keeps cutting power on its own. This app stops " +
+                    "watching this phone's battery, so it will no longer tell the " +
+                    "socket when to stop charging it.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Muted,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(
+                    text = "DISCONNECT",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Alarm,
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onCancel) {
+                Text(
+                    text = "CANCEL",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Muted,
+                )
+            }
+        },
+    )
 }
 
 /**
@@ -478,9 +647,44 @@ private fun SocketState.tint(): Color = when (this) {
     else -> Muted
 }
 
-private fun formatDuration(ms: Long): String {
-    val totalMinutes = ms / 60_000
-    val hours = totalMinutes / 60
-    val minutes = totalMinutes % 60
-    return if (hours > 0) "${hours}h ${minutes}m" else "${minutes}m"
+/** Stands in for a value that exists but has not been measured yet. An em dash. */
+private const val NOT_YET = "—"
+
+/**
+ * Nominal UK mains, for turning a measured current into a power figure.
+ *
+ * The socket has no voltmeter - `docs/FINAL_BUILD.md` is clear that mains never
+ * touches the low-voltage side - so this is the one number in the app that is
+ * assumed rather than measured.
+ */
+private const val MainsVolts = 230
+
+/**
+ * Electricity the socket kept out of the wall, in watt-hours.
+ *
+ * Two measurements and one assumption: the heaviest current the socket saw, how
+ * long it then held the relay open, and nominal mains for the voltage it has no
+ * way to measure. Power times time, which is what a meter would have charged for
+ * had the socket not cut.
+ *
+ * AN EM DASH UNTIL BOTH HALVES EXIST. With no load ever seen, or no time yet
+ * accrued, the product is zero - and "0.00 Wh" claims a measurement of nothing
+ * where the truth is that nothing has been measured.
+ */
+private fun energySaved(heaviestMa: Int, savedMs: Long): String {
+    if (heaviestMa <= 0 || savedMs <= 0L) return NOT_YET
+
+    val watts = heaviestMa * MainsVolts / 1000f
+    val hours = savedMs / 3_600_000f
+    val wh = watts * hours
+
+    // Scaled precision. A socket that has been cut for a minute has saved
+    // hundredths of a watt-hour, and one left overnight has saved tens - the
+    // same format cannot serve both without either lying or reading as zero.
+    return when {
+        wh >= 10f -> String.format(Locale.UK, "%.0f Wh", wh)
+        wh >= 1f -> String.format(Locale.UK, "%.1f Wh", wh)
+        else -> String.format(Locale.UK, "%.2f Wh", wh)
+    }
 }
+

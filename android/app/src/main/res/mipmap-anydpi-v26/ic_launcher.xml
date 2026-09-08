@@ -1,6 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  The SS monogram on the app's own ground, so the icon and the first screen show
+  the same mark on the same colour.
+
+  The artwork is transparent, which is what lets it sit on @color/ink rather than
+  carrying a white plate of its own. On that ground the gold reads at full
+  strength and the outlined S ghosts back behind it, exactly as it does inside
+  the app.
+
+  No monochrome layer. A themed icon has to be a single-colour silhouette, and
+  the whole point of this mark is the two S shapes being weighted differently -
+  flattened to one colour it collapses into an unreadable blob.
+-->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@drawable/ic_launcher_background" />
-    <foreground android:drawable="@drawable/ic_launcher_foreground" />
-    <monochrome android:drawable="@drawable/ic_launcher_foreground" />
+    <background android:drawable="@color/ink" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
 </adaptive-icon>

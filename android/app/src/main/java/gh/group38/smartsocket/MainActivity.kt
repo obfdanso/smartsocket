@@ -21,7 +21,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -29,10 +28,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
-import gh.group38.smartsocket.data.LinkState
 import gh.group38.smartsocket.ui.ConnectScreen
 import gh.group38.smartsocket.ui.ConnectingScreen
 import gh.group38.smartsocket.ui.DashboardScreen
@@ -186,6 +187,15 @@ private fun App(vm: SocketViewModel, onRequestPermissions: () -> Unit) {
     val history by vm.history.collectAsState()
     val context = LocalContext.current
 
+    // Held HERE, above the screen switch, not inside ConnectScreen.
+    //
+    // Picking a device swaps that screen out for the connecting one, so the
+    // failure arrives while it is gone and lands on a fresh composition when it
+    // returns - anything remembered down there has already been reset. Only a
+    // connection the user asked for is worth interrupting them about, and this
+    // is the one place that outlives the asking.
+    var connectRequested by remember { mutableStateOf(false) }
+
     AnimatedContent(
         targetState = screen,
         transitionSpec = { fadeIn(tween(340)).togetherWith(fadeOut(tween(220))) },
@@ -194,7 +204,15 @@ private fun App(vm: SocketViewModel, onRequestPermissions: () -> Unit) {
         when (current) {
             Screen.SPLASH -> SplashScreen(onDone = vm::onSplashDone)
 
-            Screen.ONBOARDING -> OnboardingScreen(onDone = vm::onOnboardingDone)
+            // Insets, like every other screen with content at its edges. Without
+            // them the "Group 38 · Project 38" footer sat underneath the
+            // navigation bar. The splash is deliberately left full-bleed: its
+            // gradient should reach the edges and its mark is centred, so it has
+            // nothing to keep clear of.
+            Screen.ONBOARDING -> OnboardingScreen(
+                onDone = vm::onOnboardingDone,
+                modifier = Modifier.windowInsetsPadding(WindowInsets.systemBars),
+            )
 
             Screen.CONNECT -> ConnectScreen(
                 devices = devices,
@@ -204,8 +222,14 @@ private fun App(vm: SocketViewModel, onRequestPermissions: () -> Unit) {
                 scanning = scanning,
                 onRequestPermission = onRequestPermissions,
                 onScan = vm::startScan,
-                onSelect = vm::connect,
+                onAutoScan = vm::startScanOnce,
+                onSelect = { device ->
+                    connectRequested = true
+                    vm.connect(device)
+                },
                 onDemo = vm::openDemo,
+                errorVisible = connectRequested,
+                onDismissError = { connectRequested = false },
                 modifier = Modifier.windowInsetsPadding(WindowInsets.systemBars),
             )
 

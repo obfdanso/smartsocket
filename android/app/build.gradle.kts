@@ -30,8 +30,10 @@ android {
         // platform the app's main feature cannot run on.
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        // Bumped per build handed to somebody else. Without it every APK in the
+        // group chat is called 1.0 and nobody can tell which one they installed.
+        versionCode = 2
+        versionName = "1.1"
     }
 
     signingConfigs {

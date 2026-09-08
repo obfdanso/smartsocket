@@ -35,7 +35,7 @@ import kotlinx.coroutines.delay
  * the short, fixed hold rather than a spinner tied to nothing.
  */
 @Composable
-fun SplashScreen(onDone: () -> Unit) {
+fun SplashScreen(onDone: () -> Unit, modifier: Modifier = Modifier) {
     var shown by remember { mutableStateOf(false) }
 
     val scale by animateFloatAsState(
@@ -51,12 +51,16 @@ fun SplashScreen(onDone: () -> Unit) {
 
     LaunchedEffect(Unit) {
         shown = true
-        delay(1500)
+        // 800, not 1500. Android 12+ shows its own splash from the launcher icon
+        // before this one ever draws, so the two ran back to back and the app
+        // felt like it was struggling to start rather than introducing itself.
+        // Long enough for the mark to land, short enough not to be a wait.
+        delay(800)
         onDone()
     }
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .background(
                 Brush.radialGradient(
@@ -70,8 +74,8 @@ fun SplashScreen(onDone: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            SocketMark(
-                size = 104.dp,
+            LogoMark(
+                size = 132.dp,
                 modifier = Modifier
                     .scale(scale)
                     .alpha(fade),

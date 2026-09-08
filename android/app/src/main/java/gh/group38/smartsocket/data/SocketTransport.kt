@@ -38,6 +38,18 @@ data class SocketDevice(
      * it out of the list.
      */
     val rssi: Int? = null,
+
+    /**
+     * Whether the advertisement carried one of the serial service UUIDs in
+     * [BleSerialProfiles].
+     *
+     * THE STRONGEST EVIDENCE AVAILABLE WITHOUT CONNECTING. A phone, a watch or a
+     * pair of earbuds does not advertise `FFE0`; a serial module does, because
+     * that service is the only reason it exists. A module can be renamed over AT
+     * commands - this one is an HM-10 calling itself HC-05 - so the name lies
+     * long before the service list does.
+     */
+    val advertisesSerial: Boolean = false,
 ) {
     val isDemo: Boolean get() = kind == LinkKind.DEMO
 

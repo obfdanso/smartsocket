@@ -1,5 +1,6 @@
 package gh.group38.smartsocket.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -65,13 +66,17 @@ private val pages = listOf(
 )
 
 @Composable
-fun OnboardingScreen(onDone: () -> Unit) {
+fun OnboardingScreen(onDone: () -> Unit, modifier: Modifier = Modifier) {
     var index by remember { mutableIntStateOf(0) }
     val page = pages[index]
     val last = index == pages.lastIndex
 
+    // Back steps through the pages before it leaves them. Going straight out of
+    // the app from page three - having read two - is not what the gesture means.
+    BackHandler(enabled = index > 0) { index-- }
+
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .background(Ink)
             .padding(horizontal = 28.dp, vertical = 40.dp),
@@ -81,7 +86,7 @@ fun OnboardingScreen(onDone: () -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            SocketMark(size = 34.dp)
+            LogoMark(size = 44.dp)
 
             if (!last) {
                 Text(
@@ -93,38 +98,48 @@ fun OnboardingScreen(onDone: () -> Unit) {
             }
         }
 
-        Spacer(Modifier.height(56.dp))
-
-        AnimatedContent(
-            targetState = index,
-            transitionSpec = {
-                (slideInHorizontally { it / 3 } + fadeIn(tween(320)))
-                    .togetherWith(slideOutHorizontally { -it / 3 } + fadeOut(tween(180)))
-            },
-            label = "page",
-        ) { _ ->
-            Column {
-                Text(
-                    text = page.kicker.uppercase(),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Gold,
-                )
-                Spacer(Modifier.height(18.dp))
-                Text(
-                    text = page.title,
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = Bone,
-                )
-                Spacer(Modifier.height(18.dp))
-                Text(
-                    text = page.body,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = Muted,
-                )
+        // THE TEXT SITS IN THE MIDDLE OF WHAT IS LEFT.
+        //
+        // It used to be pinned under the header by a fixed 56 dp spacer, with a
+        // single weighted Spacer below soaking up everything else - which on a
+        // tall phone left roughly a third of the screen visibly, obviously
+        // empty. Giving this block the weight instead, and centring inside it,
+        // splits that space above and below where it reads as margin.
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            verticalArrangement = Arrangement.Center,
+        ) {
+            AnimatedContent(
+                targetState = index,
+                transitionSpec = {
+                    (slideInHorizontally { it / 3 } + fadeIn(tween(320)))
+                        .togetherWith(slideOutHorizontally { -it / 3 } + fadeOut(tween(180)))
+                },
+                label = "page",
+            ) { _ ->
+                Column {
+                    Text(
+                        text = page.kicker.uppercase(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Gold,
+                    )
+                    Spacer(Modifier.height(18.dp))
+                    Text(
+                        text = page.title,
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = Bone,
+                    )
+                    Spacer(Modifier.height(18.dp))
+                    Text(
+                        text = page.body,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Muted,
+                    )
+                }
             }
         }
-
-        Spacer(Modifier.weight(1f))
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             pages.indices.forEach { i ->
@@ -150,16 +165,6 @@ fun OnboardingScreen(onDone: () -> Unit) {
         GoldButton(
             text = if (last) "Get started" else "Next",
             onClick = { if (last) onDone() else index++ },
-        )
-
-        Spacer(Modifier.height(10.dp))
-
-        Text(
-            text = "Group 38 · Project 38",
-            style = MaterialTheme.typography.labelSmall,
-            color = Faint,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
         )
     }
 }

@@ -130,7 +130,12 @@ class SocketRepository(private val context: Context) {
                         it
                     } else {
                         found.copy(
-                            name = if (found.name == "Unnamed") it.name else found.name
+                            name = if (found.name == "Unnamed") it.name else found.name,
+                            // Once seen, never unseen. A module does not put its
+                            // service list in every advertisement - the packet is
+                            // 31 bytes and the name competes for the room - so a
+                            // later sighting without it is silence, not a denial.
+                            advertisesSerial = found.advertisesSerial || it.advertisesSerial,
                         )
                     }
                 }
