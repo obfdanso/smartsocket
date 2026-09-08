@@ -32,6 +32,20 @@ desktop/**/obj/
 desktop/dist/
 desktop/publish/
 
+# Web app: installed dependencies and build output. package-lock.json is
+# deliberately NOT ignored - it pins every transitive version, so a clone builds
+# the same bytes this machine did.
+web/node_modules/
+web/dist/
+
+# TypeScript incremental build cache.
+*.tsbuildinfo
+
+# Built desktop executables dropped in the desktop folder. `dotnet publish`
+# writes one of these on demand; a 68 MB binary in the history is 68 MB nobody
+# can ever remove from it.
+desktop/*.exe
+
 # Collected installers. Build products, not sources - regenerate them with the
 # publish commands in CLAUDE.md.
 /dist/
