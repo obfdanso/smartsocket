@@ -1,0 +1,564 @@
+/*
+  Gold on black, the same three golds and four blacks the phone and the desktop
+  app use. Kept as tokens so the three clients can be compared side by side and
+  drift is visible rather than gradual.
+
+  DARK ONLY, DELIBERATELY. A gold-on-black identity has no light counterpart
+  that keeps the same character, and half a design is worse than one - so there
+  is no prefers-color-scheme branch here.
+*/
+:root {
+  --gold: #d4a537;
+  --gold-light: #e8c46a;
+  --gold-deep: #8a6a1c;
+  --gold-faint: rgba(212, 165, 55, 0.12);
+
+  --ink: #0b0b0c;
+  --surface1: #141416;
+  --surface2: #1c1c1f;
+  --surface3: #26262a;
+
+  /* Warm off-white, not pure white: against gold, #FFFFFF reads cold and makes
+     the gold look green. */
+  --bone: #f2eee6;
+  --muted: #9a9488;
+  --faint: #5e5a52;
+
+  --live: #3fa96a;
+  --alarm: #d0492f;
+  --caution: #e0a93b;
+
+  --radius-panel: 20px;
+  --radius-button: 16px;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--bone);
+  font-family: 'Segoe UI', Roboto, system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  overscroll-behavior-y: none;
+}
+
+/*
+  A PHONE APP FIRST, WIDENED DELIBERATELY.
+
+  Mobile-first: everything below is what a 360 px phone gets, and the media
+  queries at the foot of this file only ever add. Reading screens - splash,
+  onboarding, connect - stay a single column at every size, because a line of
+  body text stretched across a 16" laptop is unreadable however much room there
+  is. Only the dashboard and the history, which are made of independent panels,
+  are allowed to use a wide screen.
+
+  Padding is fluid rather than stepped, so a 320 px phone does not lose a
+  seventh of its width to margins.
+*/
+.app {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100%;
+  padding: 18px clamp(14px, 5vw, 22px) calc(24px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- type ---------------------------------------------------------------- */
+
+/*
+  The one number the screen is built around, so it scales with the viewport
+  rather than stepping. At 64 px it overflowed a 320 px phone once the unit and
+  its padding were beside it; clamped, it gives way on a small screen and takes
+  the room back on a large one.
+*/
+.display {
+  font-size: clamp(44px, 13vw, 64px);
+  line-height: 1;
+  font-weight: 300;
+  letter-spacing: -2px;
+  color: var(--bone);
+}
+
+.headline {
+  font-size: 26px;
+  line-height: 1.23;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  margin: 0;
+}
+
+.title {
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.body {
+  font-size: 14px;
+  color: var(--muted);
+  margin: 0;
+}
+
+/* Wide tracking on small uppercase labels is what stops a dark UI reading as
+   cramped. */
+.label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.wordmark {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 1.1px;
+  color: var(--muted);
+}
+
+.hairline {
+  height: 1px;
+  background: var(--surface3);
+  border: 0;
+  margin: 0;
+}
+
+/* --- pieces -------------------------------------------------------------- */
+
+.panel {
+  background: var(--surface1);
+  border: 1px solid var(--surface3);
+  border-radius: var(--radius-panel);
+  padding: 20px;
+}
+
+.panel.accent {
+  border-color: var(--gold-faint);
+}
+
+.logo {
+  display: block;
+  margin: 0 auto;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+}
+
+.pill .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* --- buttons ------------------------------------------------------------- */
+
+/*
+  No ripple, but not no feedback. The press is shown rather than washed: the
+  target shrinks very slightly under the finger and springs back. A dead tap on
+  a device that switches mains is worse than an ugly one, because there is no
+  way to tell it from a tap that did not register.
+*/
+button {
+  font: inherit;
+  cursor: pointer;
+  transition: transform 120ms ease, opacity 120ms ease;
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+button:disabled {
+  cursor: default;
+}
+
+.btn-gold {
+  width: 100%;
+  height: 54px;
+  border: 0;
+  border-radius: var(--radius-button);
+  background: var(--gold);
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.btn-gold:disabled {
+  background: var(--surface3);
+  color: var(--faint);
+}
+
+.btn-outline {
+  height: 50px;
+  padding: 0 18px;
+  border-radius: 14px;
+  border: 1px solid var(--surface3);
+  background: transparent;
+  color: var(--bone);
+  font-size: 14px;
+}
+
+.btn-outline:disabled {
+  border-color: var(--surface2);
+  color: var(--faint);
+}
+
+/* A chip rather than a bar: small enough to sit at the end of a row without
+   owning it. It carries its own colour on the border, because at that size a
+   neutral grey edge reads as disabled. */
+.btn-chip {
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 10px;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+}
+
+/* --- slider -------------------------------------------------------------- */
+
+/*
+  One continuous track. Material's stock slider breaks itself either side of the
+  thumb and drops a stop dot at the far end; against gold those read as a break
+  and a speck rather than as styling.
+*/
+.slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 22px;
+  background: transparent;
+  margin: 0;
+}
+
+.slider::-webkit-slider-runnable-track {
+  height: 22px;
+  border-radius: 11px;
+  background: linear-gradient(
+    to right,
+    var(--gold) 0 var(--fill, 50%),
+    var(--surface3) var(--fill, 50%) 100%
+  );
+}
+
+.slider::-moz-range-track {
+  height: 22px;
+  border-radius: 11px;
+  background: var(--surface3);
+}
+
+.slider::-moz-range-progress {
+  height: 22px;
+  border-radius: 11px;
+  background: var(--gold);
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 6px;
+  height: 34px;
+  margin-top: -6px;
+  border-radius: 3px;
+  background: var(--gold);
+  border: 0;
+}
+
+.slider::-moz-range-thumb {
+  width: 6px;
+  height: 34px;
+  border-radius: 3px;
+  background: var(--gold);
+  border: 0;
+}
+
+.slider:disabled::-webkit-slider-runnable-track {
+  background: var(--surface3);
+}
+
+.slider:disabled::-webkit-slider-thumb,
+.slider:disabled::-moz-range-thumb {
+  background: var(--muted);
+}
+
+/* --- rows ---------------------------------------------------------------- */
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.stats {
+  display: flex;
+  gap: 12px;
+}
+
+.stats > * {
+  flex: 1;
+}
+
+/* --- dialog -------------------------------------------------------------- */
+
+/*
+  The app's own modal. `confirm()` and `alert()` are drawn by the browser in its
+  own chrome and cannot be styled - next to a gold-on-black page they look like
+  a different program has interrupted, which for a confirmation is the worst
+  possible moment to look unfamiliar.
+*/
+.scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.62);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  z-index: 10;
+}
+
+.dialog {
+  background: var(--surface1);
+  border: 1px solid var(--surface3);
+  border-radius: var(--radius-panel);
+  padding: 26px;
+  max-width: 420px;
+  width: 100%;
+}
+
+.dialog h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.dialog .actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+/* --- misc ---------------------------------------------------------------- */
+
+.center-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.spin {
+  animation: spin 1.4s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
+
+  button:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* ==========================================================================
+   RESPONSIVE
+
+   Four sizes, chosen from where the content breaks rather than from a list of
+   device widths - a breakpoint named after last year's phone is out of date the
+   moment the next one ships.
+
+     < 380    small phones. The stats row is the first thing to run out of room.
+     >= 600   large phones in landscape, and small tablets.
+     >= 900   the dashboard has enough width for two columns of panels.
+     >= 1280  a laptop. Capped, because the panels stop improving past this.
+   ========================================================================== */
+
+/* --- the layout hooks ----------------------------------------------------- */
+
+/*
+  Stacked on a phone, side by side on anything wide enough. The header and the
+  reconnecting banner always span the full width - they describe the whole
+  screen, not one column of it.
+*/
+.dash,
+.dash-head,
+.dash-main,
+.dash-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* --- small phones --------------------------------------------------------- */
+
+@media (max-width: 379px) {
+  /*
+    Three readouts across 300 px of usable width gives each about 90 px, and
+    "Energy saved" wraps to three lines inside it. Two-up keeps every label on
+    one line and costs nothing but a row of height.
+  */
+  .stats {
+    flex-wrap: wrap;
+    gap: 14px 12px;
+  }
+
+  .stats > * {
+    flex: 1 1 42%;
+  }
+
+  .panel {
+    padding: 16px;
+  }
+
+  .dialog {
+    padding: 20px;
+  }
+}
+
+/* --- a phone on its side, or any short window ----------------------------- */
+
+/*
+  Vertical room is the scarce thing here, not horizontal. The splash and the
+  onboarding centre their content in the viewport, so on a 360 px-tall window
+  they would otherwise push their own buttons off the bottom edge.
+*/
+@media (max-height: 520px) and (orientation: landscape) {
+  .app {
+    padding-top: 10px;
+  }
+
+  .center-screen {
+    justify-content: flex-start;
+    padding-top: 12px;
+  }
+
+  .display {
+    font-size: clamp(36px, 9vh, 52px);
+  }
+}
+
+/* --- large phones and small tablets --------------------------------------- */
+
+@media (min-width: 600px) {
+  .app {
+    max-width: 560px;
+    padding-top: 28px;
+  }
+}
+
+/* --- wide enough for two columns ------------------------------------------ */
+
+@media (min-width: 900px) {
+  /*
+    Only the screens made of independent panels widen. Onboarding and connect
+    keep the 560 px column above, because their body text has a comfortable
+    measure and stretching it would only make it harder to read.
+  */
+  .app--wide {
+    max-width: 940px;
+  }
+
+  .dash {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+  }
+
+  .dash-head {
+    grid-column: 1 / -1;
+  }
+
+  /* The socket's own readings on the left, this device's settings on the
+     right - the same split the two halves already had vertically. */
+  .dash-main {
+    grid-column: 1;
+  }
+
+  .dash-side {
+    grid-column: 2;
+  }
+
+  .history-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .chart {
+    height: 160px !important;
+  }
+}
+
+/* --- a laptop ------------------------------------------------------------- */
+
+@media (min-width: 1280px) {
+  .app--wide {
+    max-width: 1080px;
+  }
+
+  /* Room to give the headline number back the size it has on a phone, where it
+     fills a third of the width. */
+  .display {
+    font-size: 72px;
+  }
+
+  .history-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* --- very wide, or a 16" at default scaling ------------------------------- */
+
+@media (min-width: 1600px) {
+  /*
+    Capped rather than fluid. Past this the panels stop getting better and the
+    eye just has further to travel between them, so the extra width becomes
+    margin instead.
+  */
+  .app--wide {
+    max-width: 1180px;
+  }
+}
