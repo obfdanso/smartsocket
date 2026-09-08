@@ -43,6 +43,10 @@ public partial class MainWindow : Window
 
         Closing += OnClosing;
 
+        // The handle does not exist until the window is being created, and the
+        // DWM attributes need one.
+        SourceInitialized += (_, _) => ApplyTitleBarTheme();
+
         RefreshPorts();
         RenderBattery();
         RenderLink(Repo.Link);
@@ -88,13 +92,30 @@ public partial class MainWindow : Window
         switch (state)
         {
             case LinkState.Connected:
-                ConnectError.Text = "";
+                _connectRequested = false;
                 ShowView(View.Dashboard);
                 break;
 
             case LinkState.Failed failed:
-                ConnectError.Text = failed.Reason;
                 ShowView(View.Connect);
+
+                // A FAILURE IS ONLY WORTH A DIALOG IF THE USER ASKED FOR THE
+                // CONNECTION. The app reconnects to the remembered socket the
+                // moment it starts, entirely on its own, and when that device is
+                // out of range - which it is every time the socket is not
+                // powered - the first thing the user met was a box about an
+                // attempt they never made.
+                if (_connectRequested)
+                {
+                    _connectRequested = false;
+
+                    // The reason is kept as the body on purpose: the transport
+                    // tells a link that never opened from one that opened and
+                    // stayed silent, and from one sending bytes nobody can
+                    // parse. Those three mean check the pairing, check TXD, and
+                    // check the baud rate.
+                    AppDialog.Warn(this, "Device not in range", failed.Reason);
+                }
                 break;
 
             case LinkState.Idle:
@@ -152,14 +173,71 @@ public partial class MainWindow : Window
         RelayReadout.Text = status.RelayClosed ? "CLOSED" : "OPEN";
         RelayReadout.Foreground = Brush(status.RelayClosed ? "Live" : "Muted");
 
+        // Only where it means something. There is nothing to check for while a
+        // charge is running - the phone offers this in Cutoff and nowhere else.
+        ProbeButton.Visibility = status.State == SocketState.Cutoff
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
         SessionReadout.Text = status.SessionElapsedMs > 0
             ? $"Charging for {Duration(status.SessionElapsedMs)}"
             : "No charge session running";
 
+        // ENERGY, NOT DURATION, TO MATCH THE PHONE. "14m of power saved" says
+        // how long the wall was off; watt-hours say how much electricity never
+        // left it, which is the thing the socket is actually for.
+        if (status.PeakMa > _heaviestMa) _heaviestMa = status.PeakMa;
+
         SavedReadout.Text =
             $"{status.CutoffCount} cutoff{(status.CutoffCount == 1 ? "" : "s")}, " +
-            $"{Duration(status.TotalSavedMs)} of power saved";
+            $"{EnergySaved(_heaviestMa, status.TotalSavedMs)} saved";
     }
+
+    /// <summary>
+    /// The heaviest draw seen since this window opened.
+    ///
+    /// Kept because the firmware clears <c>PeakMa</c> the instant the socket
+    /// cuts, so reading the live value would blank the figure at exactly the
+    /// moment it is worth showing - the one right after the wall went off.
+    /// </summary>
+    private int _heaviestMa;
+
+    /// <summary>
+    /// Electricity the socket kept out of the wall, in watt-hours.
+    ///
+    /// Two measurements and one assumption: the heaviest current the socket saw,
+    /// how long it then held the relay open, and nominal mains for the voltage
+    /// it has no way to measure. Power times time, which is what a meter would
+    /// have charged for had the socket not cut.
+    ///
+    /// An em dash until both halves exist, because "0.00 Wh" claims a
+    /// measurement of nothing where the truth is that nothing has been measured.
+    /// </summary>
+    private static string EnergySaved(int heaviestMa, long savedMs)
+    {
+        if (heaviestMa <= 0 || savedMs <= 0) return "—";
+
+        var watts = heaviestMa * MainsVolts / 1000.0;
+        var hours = savedMs / 3_600_000.0;
+        var wh = watts * hours;
+
+        // Scaled precision. A socket cut for a minute has saved hundredths of a
+        // watt-hour, one left overnight has saved tens, and one format cannot
+        // serve both without either lying or reading as zero.
+        return wh switch
+        {
+            >= 10 => $"{wh:0} Wh",
+            >= 1 => $"{wh:0.0} Wh",
+            _ => $"{wh:0.00} Wh",
+        };
+    }
+
+    /// <summary>
+    /// Nominal UK mains, for turning a measured current into a power figure.
+    /// The socket has no voltmeter - mains never touches the low-voltage side -
+    /// so this is the one number in the app that is assumed rather than measured.
+    /// </summary>
+    private const int MainsVolts = 230;
 
     private void RenderBattery()
     {
@@ -192,9 +270,14 @@ public partial class MainWindow : Window
 
         if (Repo.History.Sessions.Count == 0)
         {
-            HistoryList.Items.Add("Nothing recorded yet.");
+            // The phone's wording, and its behaviour: nothing to export and
+            // nothing to clear, so neither action is offered.
+            HistoryList.Items.Add("Charges appear here once the socket has cut power at least once.");
+            HistoryActions.Visibility = Visibility.Collapsed;
             return;
         }
+
+        HistoryActions.Visibility = Visibility.Visible;
 
         foreach (var s in Repo.History.Sessions)
         {
@@ -227,9 +310,26 @@ public partial class MainWindow : Window
         PortList.IsEnabled = false;
         PortList.Items.Add("Looking…");
 
+        // THE BUTTON SAYS SO TOO. Only the list changed before, and enumerating
+        // the Bluetooth radio takes long enough that a click with no visible
+        // answer reads as a button that does nothing - so it gets clicked again,
+        // and again. The phone's Search does exactly this.
+        SearchButton.Content = "SEARCHING…";
+        SearchButton.IsEnabled = false;
+
         // Enumerating BLE devices goes out to the Bluetooth radio, so it cannot
         // be done on the UI thread the way listing COM ports can.
-        _devices = [.. await SocketRepository.AvailableDevicesAsync()];
+        try
+        {
+            _devices = [.. await SocketRepository.AvailableDevicesAsync()];
+        }
+        finally
+        {
+            // In a finally, so a radio that throws cannot leave the button
+            // saying "SEARCHING…" for the rest of the session.
+            SearchButton.Content = "SEARCH";
+            SearchButton.IsEnabled = true;
+        }
 
         PortList.Items.Clear();
 
@@ -263,7 +363,9 @@ public partial class MainWindow : Window
 
         var device = _devices[index];
 
-        ConnectError.Text = "";
+        // The user asked for this one, so a failure is worth interrupting them
+        // about. See the LinkState.Failed case.
+        _connectRequested = true;
         Settings.LastPort = device.Id;
         Settings.Save();
 
@@ -272,9 +374,58 @@ public partial class MainWindow : Window
 
     private async void OnDemo(object sender, RoutedEventArgs e)
     {
-        ConnectError.Text = "";
         await Repo.ConnectAsync(SocketDevice.Demo);
     }
+
+    /// <summary>
+    /// Whether a failure is currently worth a dialog - true only once the user
+    /// has actually asked for a connection.
+    /// </summary>
+    private bool _connectRequested;
+
+    // --- title bar ------------------------------------------------------------
+
+    [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
+
+    private const int DwmUseImmersiveDarkMode = 20;
+    private const int DwmCaptionColour = 35;
+    private const int DwmTextColour = 36;
+    private const int DwmBorderColour = 34;
+
+    /// <summary>
+    /// Paints the title bar in the app's own colours.
+    ///
+    /// A GOLD-ON-BLACK WINDOW UNDER A WHITE WIN32 CAPTION looks like the app
+    /// stops at the top edge. These are the real system attributes rather than a
+    /// custom chrome: the caption stays a caption, so snapping, dragging,
+    /// double-click-to-maximise and the Windows 11 snap flyout all keep working,
+    /// which a hand-drawn title bar would have to reimplement one at a time.
+    ///
+    /// Windows 11 21H2 and later for the colour attributes; the dark-mode flag
+    /// goes back to Windows 10 1809. Older builds simply ignore what they do not
+    /// know, so there is nothing to guard.
+    /// </summary>
+    private void ApplyTitleBarTheme()
+    {
+        var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        if (handle == IntPtr.Zero) return;
+
+        var dark = 1;
+        DwmSetWindowAttribute(handle, DwmUseImmersiveDarkMode, ref dark, sizeof(int));
+
+        // DWM wants COLORREF - 0x00BBGGRR - so the bytes are the reverse of the
+        // hex a designer would write.
+        var caption = Bgr(0x0B, 0x0B, 0x0C);   // Ink
+        var text = Bgr(0xF2, 0xEE, 0xE6);      // Paper
+        var border = Bgr(0x26, 0x26, 0x2A);    // Surface3
+
+        DwmSetWindowAttribute(handle, DwmCaptionColour, ref caption, sizeof(int));
+        DwmSetWindowAttribute(handle, DwmTextColour, ref text, sizeof(int));
+        DwmSetWindowAttribute(handle, DwmBorderColour, ref border, sizeof(int));
+    }
+
+    private static int Bgr(int r, int g, int b) => r | (g << 8) | (b << 16);
 
     // --- dashboard ------------------------------------------------------------
 
@@ -289,6 +440,25 @@ public partial class MainWindow : Window
 
     private async void OnDisconnect(object sender, RoutedEventArgs e)
     {
+        // Asks first, as the phone does. It hands the charge decision back to
+        // the socket and drops the link - a real consequence to arrive at by way
+        // of a stray click near the corner of the window.
+        //
+        // It names the consequence rather than asking "are you sure?", because
+        // the thing worth knowing is not that something is about to happen but
+        // what: the socket carries on by itself, and the part that stops is this
+        // machine's own charge limit.
+        var confirm = AppDialog.Confirm(
+            this,
+            "Disconnect?",
+            "The socket keeps cutting power on its own. This app stops watching " +
+            "this laptop's battery, so it will no longer tell the socket when to " +
+            "stop charging it.",
+            confirmText: "DISCONNECT",
+            danger: true);
+
+        if (!confirm) return;
+
         // Give the socket its own judgement back before dropping the link, so it
         // is never left with nothing watching the charge. A link that dies on
         // its own cannot do this, which is exactly why the claim also expires on
@@ -340,15 +510,16 @@ public partial class MainWindow : Window
 
     private void OnClearHistory(object sender, RoutedEventArgs e)
     {
-        var answer = MessageBox.Show(
-            "Delete every recorded charge, and reset the socket's lifetime cutoff " +
-            "count and saved time?\n\nThis cannot be undone. The socket's learned " +
-            "taper calibration is kept.",
-            "Clear history",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
+        // Word for word what the phone asks.
+        var answer = AppDialog.Confirm(
+            this,
+            "Clear history?",
+            "Every recorded charge is deleted, and the socket's own lifetime " +
+            "cutoff count and saved time are reset to zero. This cannot be undone.",
+            confirmText: "CLEAR",
+            danger: true);
 
-        if (answer != MessageBoxResult.Yes) return;
+        if (!answer) return;
 
         Repo.History.Clear();
 
@@ -361,7 +532,8 @@ public partial class MainWindow : Window
     {
         if (Repo.History.Sessions.Count == 0)
         {
-            MessageBox.Show("There is nothing to export yet.", "Export");
+            AppDialog.Tell(this, "Nothing to export",
+                "Charges appear here once the socket has cut power at least once.");
             return;
         }
 
@@ -380,7 +552,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Could not write the file.\n\n{ex.Message}", "Export");
+            AppDialog.Warn(this, "Could not write the file", ex.Message);
         }
     }
 }

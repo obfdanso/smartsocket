@@ -5,54 +5,134 @@
              StartupUri="MainWindow.xaml">
     <Application.Resources>
 
-        <!-- Gold on black, the same palette as the Android app. -->
-        <SolidColorBrush x:Key="Ink" Color="#0A0A0A" />
-        <SolidColorBrush x:Key="Panel" Color="#161616" />
-        <SolidColorBrush x:Key="Gold" Color="#D4AF37" />
-        <SolidColorBrush x:Key="Live" Color="#4CAF50" />
-        <SolidColorBrush x:Key="Alarm" Color="#E53935" />
-        <SolidColorBrush x:Key="Muted" Color="#8A8A8A" />
-        <SolidColorBrush x:Key="Paper" Color="#F2F2F2" />
+        <!--
+          THE ANDROID APP'S PALETTE, VALUE FOR VALUE.
+
+          It was "the same palette as the Android app" in spirit only - the gold
+          was #D4AF37 against the phone's #D4A537, the ink #0A0A0A against
+          #0B0B0C, the greys a flat neutral against warm ones. Side by side on a
+          bench the two looked like different products, which is the one thing a
+          companion app must not do.
+
+          Keys Gold, Alarm, Live, Muted and Paper are looked up by name at
+          runtime (MainWindow.Brush) and must keep those names.
+        -->
+
+        <!-- Gold. Three steps: the mid tone carries actions, the light tone text
+             on gold, the deep tone borders and shadow. -->
+        <SolidColorBrush x:Key="Gold" Color="#D4A537" />
+        <SolidColorBrush x:Key="GoldLight" Color="#E8C46A" />
+        <SolidColorBrush x:Key="GoldDeep" Color="#8A6A1C" />
+        <SolidColorBrush x:Key="GoldFaint" Color="#1FD4A537" />
+
+        <!-- Black, in four steps so surfaces stack without borders everywhere. -->
+        <SolidColorBrush x:Key="Ink" Color="#0B0B0C" />
+        <SolidColorBrush x:Key="Panel" Color="#141416" />
+        <SolidColorBrush x:Key="Surface2" Color="#1C1C1F" />
+        <SolidColorBrush x:Key="Surface3" Color="#26262A" />
+
+        <!-- Warm off-white, not pure white: against gold #FFFFFF reads cold and
+             makes the gold look green. -->
+        <SolidColorBrush x:Key="Paper" Color="#F2EEE6" />
+        <SolidColorBrush x:Key="Muted" Color="#9A9488" />
+        <SolidColorBrush x:Key="Faint" Color="#5E5A52" />
+
+        <!-- Semantic, deliberately desaturated so they sit beside gold rather
+             than fight it. -->
+        <SolidColorBrush x:Key="Live" Color="#3FA96A" />
+        <SolidColorBrush x:Key="Alarm" Color="#D0492F" />
+        <SolidColorBrush x:Key="Caution" Color="#E0A93B" />
+
+        <!-- ================= TYPE ================= -->
 
         <Style TargetType="TextBlock">
             <Setter Property="Foreground" Value="{StaticResource Paper}" />
             <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="14" />
         </Style>
 
+        <!-- The screen title. 26/SemiBold, as headlineMedium on the phone. -->
         <Style x:Key="Heading" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource Gold}" />
-            <Setter Property="FontSize" Value="20" />
+            <Setter Property="Foreground" Value="{StaticResource Paper}" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="26" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Margin" Value="0,0,0,4" />
         </Style>
 
         <Style x:Key="Caption" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{StaticResource Muted}" />
-            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="13" />
         </Style>
 
+        <!-- Small uppercase label over a value. WPF has no letter-spacing, so
+             the phone's wide tracking is approximated with size and colour. -->
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource Faint}" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="Medium" />
+        </Style>
+
+        <!--
+          The big number. 46/Light, not monospace: the phone sets it in the same
+          face as everything else and lets the size carry it. Consolas at this
+          size reads as a terminal, which is the opposite of the intent.
+        -->
         <Style x:Key="Readout" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{StaticResource Paper}" />
-            <Setter Property="FontFamily" Value="Consolas" />
-            <Setter Property="FontSize" Value="26" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="46" />
+            <Setter Property="FontWeight" Value="Light" />
         </Style>
 
+        <!-- A statistic under a FieldLabel. -->
+        <Style x:Key="Stat" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource Paper}" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Margin" Value="0,4,0,0" />
+        </Style>
+
+        <!-- ================= SURFACES ================= -->
+
+        <!-- The one container used everywhere, so nothing drifts. 20px radius
+             and a hairline edge, as Panel on the phone. -->
         <Style x:Key="Card" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource Panel}" />
-            <Setter Property="CornerRadius" Value="8" />
-            <Setter Property="Padding" Value="16" />
-            <Setter Property="Margin" Value="0,0,0,12" />
+            <Setter Property="BorderBrush" Value="{StaticResource Surface3}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="20" />
+            <Setter Property="Padding" Value="20" />
+            <Setter Property="Margin" Value="0,0,0,14" />
         </Style>
 
+        <!-- A rule. Structure without a box around it. -->
+        <Style x:Key="Hairline" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource Surface3}" />
+            <Setter Property="Height" Value="1" />
+        </Style>
+
+        <!-- ================= BUTTONS ================= -->
+
+        <!--
+          Secondary: outline only, never filled. A filled grey button is
+          indistinguishable from a disabled one - the eye reads "flat and
+          colourless" as "not available".
+        -->
         <Style TargetType="Button">
-            <Setter Property="Background" Value="{StaticResource Panel}" />
-            <Setter Property="Foreground" Value="{StaticResource Gold}" />
-            <Setter Property="BorderBrush" Value="{StaticResource Gold}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{StaticResource Paper}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Surface3}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding" Value="16,8" />
-            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="Padding" Value="18,12" />
+            <Setter Property="Margin" Value="0,0,10,0" />
             <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
             <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -60,13 +140,20 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="6"
+                                CornerRadius="14"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
+                            <!-- No grey wash on hover: the surface lifts one
+                                 step, the way the phone's press does. -->
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Chrome" Property="Background" Value="#242424" />
+                                <Setter TargetName="Chrome" Property="Background"
+                                        Value="{StaticResource Surface2}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Chrome" Property="Background"
+                                        Value="{StaticResource Surface3}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="Chrome" Property="Opacity" Value="0.35" />
@@ -77,14 +164,210 @@
             </Setter>
         </Style>
 
+        <!-- Primary. Solid gold, dark text - RUN and SEARCH on the phone. -->
+        <Style x:Key="GoldButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="{StaticResource Gold}" />
+            <Setter Property="Foreground" Value="{StaticResource Ink}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Gold}" />
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="18,14" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chrome"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="16"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background"
+                                        Value="{StaticResource GoldLight}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Chrome" Property="Background"
+                                        Value="{StaticResource GoldDeep}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Chrome" Property="Background"
+                                        Value="{StaticResource Surface3}" />
+                                <Setter Property="Foreground" Value="{StaticResource Faint}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--
+          A chip: small enough to sit at the end of a row without owning it, and
+          carrying its own colour on the border, because at that size a neutral
+          grey edge reads as disabled.
+        -->
+        <Style x:Key="Chip" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Padding" Value="14,7" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource Gold}" />
+            <Setter Property="BorderBrush" Value="#8CD4A537" />
+        </Style>
+
+        <Style x:Key="ChipAlarm" TargetType="Button" BasedOn="{StaticResource Chip}">
+            <Setter Property="Foreground" Value="{StaticResource Alarm}" />
+            <Setter Property="BorderBrush" Value="#8CD0492F" />
+        </Style>
+
+        <!-- ================= LISTS ================= -->
+
         <Style TargetType="ListBox">
-            <Setter Property="Background" Value="{StaticResource Panel}" />
+            <Setter Property="Background" Value="Transparent" />
             <Setter Property="Foreground" Value="{StaticResource Paper}" />
-            <Setter Property="BorderBrush" Value="#2A2A2A" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="14" />
 
             <!-- Same treatment as the dashboard: still scrolls, no bar. -->
             <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Hidden" />
             <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        </Style>
+
+        <!-- Hairline-separated rows, as the phone's device list. -->
+        <Style TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="{StaticResource Paper}" />
+            <Setter Property="Padding" Value="2,12" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Row"
+                                Background="Transparent"
+                                BorderBrush="{StaticResource Surface2}"
+                                BorderThickness="0,0,0,1"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Row" Property="Background"
+                                        Value="{StaticResource Surface2}" />
+                            </Trigger>
+                            <!-- Selection is gold, not the system blue that
+                                 would drag Windows' palette into the app. -->
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Row" Property="Background"
+                                        Value="{StaticResource GoldFaint}" />
+                                <Setter Property="Foreground" Value="{StaticResource Gold}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ================= CONTROLS ================= -->
+
+        <!--
+          One continuous track, no tick marks and no gap either side of the
+          thumb. Windows' stock slider draws both, and against gold they read as
+          specks of dirt and a break in the bar - the same two things the phone's
+          slider had to have taken out of it.
+        -->
+        <Style TargetType="Slider">
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <Grid VerticalAlignment="Center">
+                            <Border Height="8" CornerRadius="4"
+                                    Background="{StaticResource Surface3}" />
+                            <Track x:Name="PART_Track">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="Slider.DecreaseLarge"
+                                                  Margin="0" Padding="0">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="RepeatButton">
+                                                <Border Height="8" CornerRadius="4"
+                                                        Background="{StaticResource Gold}" />
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.DecreaseRepeatButton>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="Slider.IncreaseLarge"
+                                                  Margin="0" Padding="0">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="RepeatButton">
+                                                <Border Background="Transparent" />
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.IncreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Width="8" Height="24" Cursor="Hand">
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Border Background="{StaticResource Gold}"
+                                                        CornerRadius="4" />
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- A gold tick in a gold box, instead of Windows' blue one. -->
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{StaticResource Paper}" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <StackPanel Orientation="Horizontal">
+                            <Border x:Name="Box" Width="20" Height="20" CornerRadius="6"
+                                    Background="Transparent"
+                                    BorderBrush="{StaticResource Surface3}"
+                                    BorderThickness="1"
+                                    VerticalAlignment="Center">
+                                <Path x:Name="Tick"
+                                      Data="M 4,10 L 8,14 L 16,5"
+                                      Stroke="{StaticResource Ink}"
+                                      StrokeThickness="2.4"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"
+                                      StrokeLineJoin="Round"
+                                      Visibility="Collapsed" />
+                            </Border>
+                            <ContentPresenter Margin="10,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Box" Property="Background"
+                                        Value="{StaticResource Gold}" />
+                                <Setter TargetName="Box" Property="BorderBrush"
+                                        Value="{StaticResource Gold}" />
+                                <Setter TargetName="Tick" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Box" Property="BorderBrush"
+                                        Value="{StaticResource Gold}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
     </Application.Resources>

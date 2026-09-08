@@ -1,0 +1,53 @@
+<Window x:Class="SmartSocket.App.AppDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        SizeToContent="Height"
+        Width="430"
+        WindowStartupLocation="CenterOwner">
+
+    <!--
+      The app's own dialog, because Windows' MessageBox cannot be styled.
+      MessageBox is drawn by the shell: system grey, system font, system buttons.
+      Next to a gold-on-black window it looked like a different program had
+      interrupted, which for a confirmation - the moment the user is being asked
+      to trust what they are reading - is the worst possible time to look
+      unfamiliar.
+    -->
+    <Border Background="{StaticResource Panel}"
+            BorderBrush="{StaticResource Surface3}"
+            BorderThickness="1"
+            CornerRadius="20"
+            Padding="26">
+        <StackPanel>
+            <TextBlock x:Name="TitleText"
+                       FontSize="17" FontWeight="SemiBold"
+                       Foreground="{StaticResource Paper}"
+                       TextWrapping="Wrap" />
+
+            <TextBlock x:Name="BodyText"
+                       Style="{StaticResource Caption}"
+                       TextWrapping="Wrap"
+                       Margin="0,12,0,0" />
+
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Margin="0,24,0,0">
+                <Button x:Name="CancelButton" Content="CANCEL"
+                        Click="OnCancel"
+                        Style="{StaticResource Chip}"
+                        Foreground="{StaticResource Muted}"
+                        BorderBrush="{StaticResource Surface3}" />
+                <Button x:Name="ConfirmButton" Content="OK"
+                        Click="OnConfirm"
+                        Style="{StaticResource Chip}"
+                        Margin="0"
+                        IsDefault="True" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

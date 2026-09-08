@@ -23,6 +23,13 @@
     -->
     <UseWindowsForms>true</UseWindowsForms>
 
+    <!--
+      The .exe's own icon: what Explorer, the taskbar and Alt-Tab show, and what
+      NotifyIcon picks up through ExtractAssociatedIcon for the tray. Without it
+      all three fell back to the generic Win32 application icon.
+    -->
+    <ApplicationIcon>Assets\smartsocket.ico</ApplicationIcon>
+
     <AssemblyName>SmartSocket</AssemblyName>
     <RootNamespace>SmartSocket.App</RootNamespace>
     <Version>1.0.0</Version>
@@ -46,6 +53,20 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SmartSocket.Core\SmartSocket.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      The SS monogram, the same file the Android app draws. Resource rather than
+      Content so it is compiled into the assembly: this publishes as a single
+      self-contained .exe, and a loose PNG beside it would be one more thing to
+      lose between here and the demo.
+    -->
+    <Resource Include="Assets\logo_mark.png" />
+
+    <!-- Also a Resource, so the Window can load it by pack URI at runtime.
+         ApplicationIcon above only stamps it onto the .exe. -->
+    <Resource Include="Assets\smartsocket.ico" />
   </ItemGroup>
 
   <ItemGroup>
